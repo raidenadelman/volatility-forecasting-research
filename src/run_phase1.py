@@ -17,6 +17,7 @@ from src.evaluate import (MIN_TRAIN, REFIT_EVERY, dm_table, score_by_period,
                           score_overall, walk_forward)
 from src.features import annualized_vol_pct, build_features
 from src.models import make_models
+from src.sheet_export import build_payload, write_sheet_payload
 
 OUT_DIR = ROOT / "outputs"
 
@@ -83,6 +84,9 @@ def main(refresh: bool = False) -> None:
     dm.to_csv(OUT_DIR / "dm_tests.csv", index=False)
     plot_forecast_vs_actual(fc, OUT_DIR / "forecast_vs_actual.png")
     plot_qlike_by_period(by_period, OUT_DIR / "qlike_by_period.png")
+    # Rows laid out for the Google Sheet (used by the scheduled refresh task).
+    write_sheet_payload(build_payload(fc, overall, by_period, dm, df.index),
+                        OUT_DIR / "sheet_payload.json")
 
     pd.set_option("display.width", 120)
     fmt = {"MSE": "{:.3e}".format, "QLIKE": "{:.4f}".format}
