@@ -16,15 +16,18 @@ from pathlib import Path
 import pandas as pd
 
 TICKER = "^GSPC"
+VIX_TICKER = "^VIX"
 START_DATE = "2000-01-01"
 # Project root = the folder that contains src/. Works no matter where you run from.
 ROOT = Path(__file__).resolve().parent.parent
 CACHE_PATH = ROOT / "data" / "raw" / "gspc.csv"
+VIX_CACHE_PATH = ROOT / "data" / "raw" / "vix.csv"
 
 PRICE_COLUMNS = ["Open", "High", "Low", "Close"]
 
 
-def download_data(start: str = START_DATE, end: str | None = None) -> pd.DataFrame:
+def download_data(start: str = START_DATE, end: str | None = None,
+                  ticker: str = TICKER) -> pd.DataFrame:
     """Download daily OHLC data from Yahoo Finance via the yfinance library.
 
     Raises a RuntimeError with a plain-language message if the download fails,
@@ -36,7 +39,7 @@ def download_data(start: str = START_DATE, end: str | None = None) -> pd.DataFra
     try:
         # auto_adjust=False keeps the raw Open/High/Low/Close (an index has no
         # dividends/splits to adjust anyway).
-        raw = yf.download(TICKER, start=start, end=end, auto_adjust=False,
+        raw = yf.download(ticker, start=start, end=end, auto_adjust=False,
                           progress=False)
     except Exception as exc:  # network errors, rate limits, etc.
         raise RuntimeError(
@@ -109,21 +112,33 @@ def validate_data(df: pd.DataFrame, verbose: bool = True) -> pd.DataFrame:
     return df
 
 
-def load_data(refresh: bool = False, verbose: bool = True) -> pd.DataFrame:
+def load_data(refresh: bool = False, verbose: bool = True, ticker: str = TICKER,
+              cache_path: Path = CACHE_PATH) -> pd.DataFrame:
     """Return validated daily OHLC data, using the CSV cache when possible."""
-    if CACHE_PATH.exists() and not refresh:
+    if cache_path.exists() and not refresh:
         if verbose:
-            print(f"Loading cached data from {CACHE_PATH}")
-        df = pd.read_csv(CACHE_PATH, index_col="Date", parse_dates=True)
+            print(f"Loading cached data from {cache_path}")
+        df = pd.read_csv(cache_path, index_col="Date", parse_dates=True)
     else:
         if verbose:
-            print(f"Downloading {TICKER} from {START_DATE} via yfinance ...")
-        df = download_data()
-        CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(CACHE_PATH)
+            print(f"Downloading {ticker} from {START_DATE} via yfinance ...")
+        df = download_data(ticker=ticker)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(cache_path)
         if verbose:
-            print(f"Saved cache to {CACHE_PATH}")
+            print(f"Saved cache to {cache_path}")
     return validate_data(df, verbose=verbose)
+
+
+def load_vix(refresh: bool = False, verbose: bool = True) -> pd.Series:
+    """Return the daily VIX closing level (in index points, e.g. 18.5), validated and cached.
+
+    VIX is the market's expected 30-day volatility of the S&P 500, annualized and
+    quoted in percent, computed from S&P 500 option prices.
+    """
+    df = load_data(refresh=refresh, verbose=verbose, ticker=VIX_TICKER,
+                   cache_path=VIX_CACHE_PATH)
+    return df["Close"].rename("vix_close")
 
 
 if __name__ == "__main__":
