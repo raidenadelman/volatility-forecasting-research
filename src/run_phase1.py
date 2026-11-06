@@ -123,11 +123,14 @@ def main(refresh: bool = False) -> None:
     overall.to_csv(OUT_DIR / "results_overall.csv")
     by_period.to_csv(OUT_DIR / "results_by_period.csv", index=False)
     dm.to_csv(OUT_DIR / "dm_tests.csv", index=False)
-    coefficient_table(features).to_csv(OUT_DIR / "coefficients_full_sample.csv", index=False)
+    coefficients = coefficient_table(features)
+    coefficients.to_csv(OUT_DIR / "coefficients_full_sample.csv", index=False)
     plot_forecast_vs_actual(fc, OUT_DIR / "forecast_vs_actual.png")
     plot_qlike_by_period(by_period, OUT_DIR / "qlike_by_period.png")
     # Rows laid out for the Google Sheet (used by the scheduled refresh task).
-    write_sheet_payload(build_payload(fc, overall, by_period, dm, df.index),
+    floor_rates = {m.name: m.n_floored / m.n_predictions
+                   for m in models if isinstance(m, HARLevelsModel)}
+    write_sheet_payload(build_payload(fc, overall, by_period, dm, df.index, floor_rates, coefficients),
                         OUT_DIR / "sheet_payload.json")
 
     pd.set_option("display.width", 160)
