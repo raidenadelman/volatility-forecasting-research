@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
-from src.features import FEATURE_COLUMNS
 from src.models import make_models
 
 MIN_TRAIN = 1000    # trading days of history required before the first forecast
@@ -44,7 +43,9 @@ def walk_forward(features: pd.DataFrame, models=None,
     if models is None:
         models = make_models()
 
-    X = features[FEATURE_COLUMNS]  # models only ever see these three columns
+    # Models see every FEATURE column (HAR terms, and VIX / FOMC flag if present)
+    # but never the `target` column, which is tomorrow's variance.
+    X = features.drop(columns="target")
     n = len(features)
     dates, actuals = [], []
     forecasts = {m.name: [] for m in models}
@@ -167,13 +168,17 @@ def diebold_mariano(actual, forecast_a, forecast_b, lags: int | None = None) -> 
             "p_value": p_value, "lags": lags, "n": T}
 
 
+def dm_pairs(forecast_df: pd.DataFrame, pairs) -> pd.DataFrame:
+    """DM tests on QLIKE for a list of (model A, model B) pairs."""
+    rows = []
+    for a, b in pairs:
+        r = diebold_mariano(forecast_df["actual"], forecast_df[a], forecast_df[b])
+        rows.append({"model_A": a, "model_B": b, **r})
+    return pd.DataFrame(rows)
+
+
 def dm_table(forecast_df: pd.DataFrame,
              challengers=("HAR-RV (levels)", "HAR-RV (log)"),
              benchmarks=("Naive", "Rolling mean")) -> pd.DataFrame:
     """DM tests of each HAR variant (A) against each baseline (B), on QLIKE."""
-    rows = []
-    for a in challengers:
-        for b in benchmarks:
-            r = diebold_mariano(forecast_df["actual"], forecast_df[a], forecast_df[b])
-            rows.append({"model_A": a, "model_B": b, **r})
-    return pd.DataFrame(rows)
+    return dm_pairs(forecast_df, [(a, b) for a in challengers for b in benchmarks])

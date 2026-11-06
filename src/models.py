@@ -1,9 +1,11 @@
 """One-step-ahead variance forecasters.
 
 Every model has the same two methods:
-    fit(train_df)      learn from a DataFrame with columns rv_d, rv_w, rv_m, target
+    fit(train_df)      learn from a DataFrame holding the feature columns plus target
     predict(test_row)  forecast next-day variance from ONE row (a pandas Series)
-                       holding rv_d, rv_w, rv_m for the current day
+                       holding the feature columns for the current day
+Each model only reads the columns it was built to use (rv_d/rv_w/rv_m, and
+optionally vix_var and fomc_next), so extra columns in the row are ignored.
 
 The two baselines have nothing to learn, so their fit() does nothing.
 """
@@ -13,6 +15,9 @@ import pandas as pd
 import statsmodels.api as sm
 
 FEATURES = ["rv_d", "rv_w", "rv_m"]
+VIX_FEATURES = FEATURES + ["vix_var"]
+FULL_FEATURES = VIX_FEATURES + ["fomc_next"]
+LOG_COLUMNS = {"rv_d", "rv_w", "rv_m", "vix_var"}  # variance-type columns that get logged
 VARIANCE_FLOOR = 1e-8  # variance can't be negative (or zero), so floor forecasts here
 
 
@@ -49,21 +54,21 @@ class HARLevelsModel:
     script reports the share. (Negative forecasts only happen if the fitted
     intercept is negative AND all recent variances are tiny.)
     """
-    name = "HAR-RV (levels)"
-
-    def __init__(self):
-        self.params = None
+    def __init__(self, features=FEATURES, name="HAR-RV (levels)"):
+        self.features = list(features)  # which columns this model is allowed to use
+        self.name = name
+        self.params = None  # [const, one coefficient per feature, in `features` order]
         self.n_predictions = 0
         self.n_floored = 0
 
     def fit(self, train_df: pd.DataFrame) -> "HARLevelsModel":
-        X = sm.add_constant(train_df[FEATURES], has_constant="add")
+        X = sm.add_constant(train_df[self.features], has_constant="add")
         result = sm.OLS(train_df["target"], X).fit()
-        self.params = result.params.to_numpy()  # [const, rv_d, rv_w, rv_m]
+        self.params = result.params.to_numpy()
         return self
 
     def predict(self, test_row: pd.Series) -> float:
-        x = np.array([1.0, test_row["rv_d"], test_row["rv_w"], test_row["rv_m"]])
+        x = np.r_[1.0, [test_row[c] for c in self.features]]
         raw = float(x @ self.params)
         self.n_predictions += 1
         if raw < VARIANCE_FLOOR:
@@ -82,14 +87,23 @@ class HARLogModel:
     multiply back by that factor, i.e. forecast = exp(prediction + 0.5 * s^2),
     where s^2 is the residual variance of the log regression.
     """
-    name = "HAR-RV (log)"
-
-    def __init__(self):
+    def __init__(self, features=FEATURES, name="HAR-RV (log)"):
+        self.features = list(features)
+        self.name = name
         self.params = None
         self.resid_var = 0.0
 
+    def _transform(self, values: dict) -> np.ndarray:
+        """Log the variance-type columns; leave 0/1 flags (like fomc_next) as they are."""
+        return np.array([np.log(values[c]) if c in LOG_COLUMNS else values[c]
+                         for c in self.features])
+
     def fit(self, train_df: pd.DataFrame) -> "HARLogModel":
-        X = sm.add_constant(np.log(train_df[FEATURES]), has_constant="add")
+        X = train_df[self.features].copy()
+        for c in self.features:
+            if c in LOG_COLUMNS:
+                X[c] = np.log(X[c])
+        X = sm.add_constant(X, has_constant="add")
         y = np.log(train_df["target"])
         result = sm.OLS(y, X).fit()
         self.params = result.params.to_numpy()
@@ -97,14 +111,23 @@ class HARLogModel:
         return self
 
     def predict(self, test_row: pd.Series) -> float:
-        x = np.array([1.0,
-                      np.log(test_row["rv_d"]),
-                      np.log(test_row["rv_w"]),
-                      np.log(test_row["rv_m"])])
+        x = np.r_[1.0, self._transform(test_row)]
         log_pred = float(x @ self.params)
         return float(np.exp(log_pred + 0.5 * self.resid_var))
 
 
-def make_models() -> list:
-    """Fresh, unfitted instances of all four models."""
-    return [NaiveModel(), RollingMeanModel(), HARLevelsModel(), HARLogModel()]
+def make_models(extended: bool = False) -> list:
+    """Fresh, unfitted models.
+
+    extended=False: the four Phase 1 models (Naive, Rolling mean, HAR-RV levels/log).
+    extended=True : adds HAR+VIX and HAR+VIX+FOMC, each in levels and log form,
+                    so the effect of each added input can be isolated:
+                    HAR-RV -> +VIX -> +FOMC.
+    """
+    models = [NaiveModel(), RollingMeanModel(), HARLevelsModel(), HARLogModel()]
+    if extended:
+        models += [HARLevelsModel(VIX_FEATURES, "HAR+VIX (levels)"),
+                   HARLogModel(VIX_FEATURES, "HAR+VIX (log)"),
+                   HARLevelsModel(FULL_FEATURES, "HAR+VIX+FOMC (levels)"),
+                   HARLogModel(FULL_FEATURES, "HAR+VIX+FOMC (log)")]
+    return models
