@@ -12,7 +12,7 @@ an FOMC-tomorrow flag. Not built yet: a live daily logger and news sentiment.
 
 ## Data
 
-- Daily OHLC for the S&P 500 index (`^GSPC`) from 2000-01-03 to 2026-11-04 (6,751 trading days) and the VIX index (`^VIX`), downloaded free with `yfinance` (no API keys) and cached in `data/raw/`.
+- Daily OHLC for the S&P 500 index (`^GSPC`) from 2000-01-03 to 2026-11-09 (6,754 trading days) and the VIX index (`^VIX`), downloaded free with `yfinance` (no API keys) and cached in `data/raw/`.
 - Validation: no duplicate dates, sorted index, no missing High/Low/Close, High >= Low. No rows were dropped. Every S&P trading day has a VIX close.
 - Scheduled FOMC decision dates, 2000 to 2027 (223 dates), read from federalreserve.gov by `scripts/fetch_fomc_dates.py` and saved in `data/events/`. Conference calls, unscheduled meetings, notation votes and cancelled meetings are excluded because they were not known in advance.
 
@@ -43,33 +43,33 @@ Levels forecasts are floored at 1e-8 because a variance cannot be negative. The 
 
 ## Results
 
-Out-of-sample forecasts: 5,729 days (2004-01-28 to 2026-11-03).
+Out-of-sample forecasts: 5,732 days (2004-01-28 to 2026-11-06).
 
 ### Overall
 
 | Model | MSE | QLIKE | Forecasts floored |
 |---|---|---|---|
-| Naive | 3.511e-08 | 0.7667 | |
-| Rolling mean | 3.507e-08 | 0.4756 | |
-| HAR-RV (levels) | 2.702e-08 | 0.3990 | 0.0% |
-| HAR-RV (log) | 2.759e-08 | 0.3961 | |
-| HAR+VIX (levels) | 2.484e-08 | 76.5235 | 5.2% |
-| HAR+VIX (log) | 2.463e-08 | 0.3613 | |
-| HAR+VIX+FOMC (levels) | 2.482e-08 | 78.8294 | 5.4% |
-| HAR+VIX+FOMC (log) | 2.462e-08 | 0.3574 | |
+| Naive | 3.525e-08 | 0.7694 | |
+| Rolling mean | 3.513e-08 | 0.4788 | |
+| HAR-RV (levels) | 2.710e-08 | 0.4009 | 0.0% |
+| HAR-RV (log) | 2.766e-08 | 0.3980 | |
+| HAR+VIX (levels) | 2.492e-08 | 76.4858 | 5.2% |
+| HAR+VIX (log) | 2.469e-08 | 0.3633 | |
+| HAR+VIX+FOMC (levels) | 2.490e-08 | 78.7905 | 5.4% |
+| HAR+VIX+FOMC (log) | 2.469e-08 | 0.3595 | |
 
 ### QLIKE by sub-period
 
 | Model | 2000-2007* | 2008-2009 | 2010-2019 | 2020-present |
 |---|---|---|---|---|
-| Naive | 0.7868 | 0.6895 | 0.7943 | 0.7373 |
-| Rolling mean | 0.3743 | 0.3737 | 0.5144 | 0.5071 |
-| HAR-RV (levels) | 0.3865 | 0.3252 | 0.4246 | 0.3904 |
-| HAR-RV (log) | 0.3710 | 0.3215 | 0.4173 | 0.4013 |
-| HAR+VIX (log) | 0.3429 | 0.3216 | 0.3746 | 0.3641 |
-| HAR+VIX+FOMC (log) | 0.3418 | 0.3205 | 0.3722 | 0.3557 |
-| HAR+VIX (levels) | 19.4601 | 0.3345 | 143.8474 | 33.1986 |
-| HAR+VIX+FOMC (levels) | 18.4481 | 0.3343 | 151.3993 | 30.4126 |
+| Naive | 0.7868 | 0.6895 | 0.7943 | 0.7464 |
+| Rolling mean | 0.3743 | 0.3737 | 0.5144 | 0.5177 |
+| HAR-RV (levels) | 0.3865 | 0.3252 | 0.4246 | 0.3968 |
+| HAR-RV (log) | 0.3710 | 0.3215 | 0.4173 | 0.4077 |
+| HAR+VIX (log) | 0.3429 | 0.3216 | 0.3746 | 0.3707 |
+| HAR+VIX+FOMC (log) | 0.3418 | 0.3205 | 0.3722 | 0.3624 |
+| HAR+VIX (levels) | 19.4601 | 0.3345 | 143.8474 | 33.1485 |
+| HAR+VIX+FOMC (levels) | 18.4481 | 0.3343 | 151.3993 | 30.3675 |
 
 \* effectively 2004-2007. MSE by period is in `outputs/results_by_period.csv`.
 
@@ -77,22 +77,22 @@ Out-of-sample forecasts: 5,729 days (2004-01-28 to 2026-11-03).
 
 | Model A | Model B | Mean loss diff | DM stat | p-value |
 |---|---|---|---|---|
-| HAR-RV (levels) | Naive | -0.3677 | -17.54 | 7.3e-69 |
-| HAR-RV (levels) | Rolling mean | -0.0766 | -6.27 | 3.7e-10 |
-| HAR-RV (log) | Naive | -0.3706 | -18.43 | 7.9e-76 |
-| HAR-RV (log) | Rolling mean | -0.0795 | -8.01 | 1.2e-15 |
-| HAR+VIX (levels) | HAR-RV (levels) | 76.12 | 6.33 | 2.5e-10 |
-| HAR+VIX (log) | HAR-RV (log) | -0.0348 | -7.21 | 5.6e-13 |
-| HAR+VIX+FOMC (levels) | HAR+VIX (levels) | 2.306 | 1.23 | 0.219 |
-| HAR+VIX+FOMC (log) | HAR+VIX (log) | -0.0038 | -3.02 | 0.0025 |
+| HAR-RV (levels) | Naive | -0.3685 | -17.57 | 4.2e-69 |
+| HAR-RV (levels) | Rolling mean | -0.0779 | -6.34 | 2.3e-10 |
+| HAR-RV (log) | Naive | -0.3714 | -18.46 | 4.3e-76 |
+| HAR-RV (log) | Rolling mean | -0.0808 | -8.08 | 6.5e-16 |
+| HAR+VIX (levels) | HAR-RV (levels) | 76.08 | 6.33 | 2.5e-10 |
+| HAR+VIX (log) | HAR-RV (log) | -0.0347 | -7.20 | 5.8e-13 |
+| HAR+VIX+FOMC (levels) | HAR+VIX (levels) | 2.305 | 1.23 | 0.219 |
+| HAR+VIX+FOMC (log) | HAR+VIX (log) | -0.0038 | -2.99 | 0.0028 |
 
 ### What the results say
 
 - **Phase 1:** both HAR variants beat both baselines on QLIKE, and the differences are statistically significant. The MSE gap between the Rolling mean and the Naive model is tiny even though their QLIKE scores differ a lot; MSE is dominated by a few extreme-volatility days, which is one reason QLIKE is preferred.
-- **VIX helps in the log model:** HAR+VIX (log) improves QLIKE from 0.3961 to 0.3613 (DM statistic -7.2). In 2008-2009 it makes no difference (0.3216 vs 0.3215).
-- **The FOMC flag helps a little:** QLIKE improves from 0.3613 to 0.3574, statistically significant but small. The estimated effect is that variance on a decision day is about 1.6 times higher, holding the other inputs fixed.
-- **The levels models with VIX fail on QLIKE.** Their MSE is fine (2.48e-08, better than plain HAR), but 5% of their forecasts are floored at 1e-8, nearly all in calm markets (161 of 300 in 2017). In calm markets the fitted intercept is negative and the monthly term has a negative weight, so the linear forecast goes to zero or below, and QLIKE punishes near-zero forecasts very heavily. This is a weakness of the levels form with VIX, not a data error. I did not change the floor after seeing it, since that would be tuning on the results. The two models are left out of the charts and shown in the tables above.
-- **In the VIX models the monthly realized term gets almost no weight** (coefficient 0.004 in the log version), because VIX already carries that information. See `outputs/coefficients_full_sample.csv`.
+- **VIX helps in the log model:** HAR+VIX (log) improves QLIKE from 0.3981 to 0.3633 (DM statistic -7.2). In 2008-2009 it makes no difference (0.3216 vs 0.3215).
+- **The FOMC flag helps a little:** QLIKE improves from 0.3633 to 0.3595, statistically significant but small. The estimated effect is that variance on a decision day is about 1.6 times higher, holding the other inputs fixed.
+- **The levels models with VIX fail on QLIKE.** Their MSE is fine (2.49e-08, better than plain HAR), but 5% of their forecasts are floored at 1e-8, nearly all in calm markets (161 of 300 in 2017). In calm markets the fitted intercept is negative and the monthly term has a negative weight, so the linear forecast goes to zero or below, and QLIKE punishes near-zero forecasts very heavily. This is a weakness of the levels form with VIX, not a data error. I did not change the floor after seeing it, since that would be tuning on the results. The two models are left out of the charts and shown in the tables above.
+- **In the VIX models the monthly realized term gets almost no weight** (coefficient 0.005 in the log version), because VIX already carries that information. See `outputs/coefficients_full_sample.csv`.
 
 ### Charts
 
