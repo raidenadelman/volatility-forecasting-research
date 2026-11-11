@@ -87,3 +87,39 @@ def write_sheet_payload(payload: dict, path) -> None:
     """Save the payload (plus the target ranges) as JSON for the refresh task."""
     with open(path, "w") as f:
         json.dump({"ranges": RANGES, "data": payload}, f)
+
+
+SLOPE_RANGE = "'Slope model'!A1"
+
+
+def build_slope_payload(overall: pd.DataFrame, dm_all: pd.DataFrame, dm_hold: pd.DataFrame,
+                        fc: pd.DataFrame) -> list:
+    """Rows for the Sheet's "Slope model" tab (18 rows, 6 columns, written at SLOPE_RANGE)."""
+    blank = [""]
+    rows = [["Phase 4: VIX term-structure slope, ln(VIX3M / VIX)"],
+            [f"Same rows for every model: {fc.index.min().date()} to {fc.index.max().date()} "
+             f"({len(fc):,} forecasts). VIX3M only starts 2006-07, so this is shorter than the "
+             "main 8-model run. Lower QLIKE is better."],
+            blank,
+            ["Model", "MSE", "QLIKE (all)", "QLIKE 2010-2015 (selection)", "QLIKE 2016+ (holdout)"]]
+    for m, r in overall.iterrows():
+        rows.append([m, float(r["MSE"]), round(float(r["QLIKE"]), 4),
+                     round(float(r["QLIKE 2010-2015"]), 4), round(float(r["QLIKE 2016+ (holdout)"]), 4)])
+    rows += [blank, ["Diebold-Mariano test on QLIKE (negative = A better)"],
+             ["Model A", "Model B", "Sample", "Mean loss diff", "DM stat", "p-value"]]
+    for label, dm in [("All", dm_all), ("2016+ only", dm_hold)]:
+        for r in dm.itertuples(index=False):
+            rows.append([r.model_A, r.model_B, label, round(r.mean_loss_diff, 4),
+                         round(r.DM_stat, 2), float(f"{r.p_value:.3g}")])
+    rows += [blank,
+             ["Tested and rejected (no gain in the 2016+ holdout): overnight gap, daily VIX change, "
+              "down-day flag, SKEW, VVIX, day of week, options-expiry flag, fitting directly on QLIKE. "
+              "VIX9D slope: small gain on a shorter sample (2015+), not added."],
+             [f"Last refreshed {date.today().isoformat()}. Source: outputs/slope_results.csv, "
+              "outputs/slope_dm_tests.csv (python -m src.run_phase4)."]]
+    return rows
+
+
+def write_slope_payload(rows: list, path) -> None:
+    with open(path, "w") as f:
+        json.dump({"range": SLOPE_RANGE, "data": rows}, f)

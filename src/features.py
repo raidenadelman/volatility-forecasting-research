@@ -13,6 +13,7 @@ MONTH = 22  # trading days in the "monthly" window
 FEATURE_COLUMNS = ["rv_d", "rv_w", "rv_m"]  # the three HAR features
 VIX_COLUMNS = FEATURE_COLUMNS + ["vix_var"]  # HAR + implied variance from VIX
 FULL_COLUMNS = VIX_COLUMNS + ["fomc_next"]   # HAR + VIX + "FOMC decision tomorrow"
+SLOPE_COLUMNS = FULL_COLUMNS + ["vix_slope"]  # ... + VIX term-structure slope
 
 
 def parkinson_variance(high: pd.Series, low: pd.Series) -> pd.Series:
@@ -63,7 +64,14 @@ def fomc_tomorrow_flag(index: pd.DatetimeIndex, fomc_dates) -> pd.Series:
     return next_day.isin(fomc).astype(float).rename("fomc_next")
 
 
-def build_features(df: pd.DataFrame, vix=None, fomc_dates=None) -> pd.DataFrame:
+def vix_term_slope(vix_close, vix3m_close) -> pd.Series:
+    """ln(VIX3M / VIX): positive in calm markets (contango), negative when short-term
+    fear exceeds 3-month fear (backwardation, i.e. stress). Both are closing levels
+    on day t, so it is known at the end of day t."""
+    return np.log(vix3m_close / vix_close)
+
+
+def build_features(df: pd.DataFrame, vix=None, fomc_dates=None, vix3m=None) -> pd.DataFrame:
     """Build the feature table from an OHLC DataFrame (indexed by date).
 
     Columns returned (all at row t):
@@ -74,6 +82,7 @@ def build_features(df: pd.DataFrame, vix=None, fomc_dates=None) -> pd.DataFrame:
     Optional extra columns:
         vix_var   (if `vix` is given)        VIX close on day t as a daily variance
         fomc_next (if `fomc_dates` is given) 1 if tomorrow is an FOMC decision day, else 0
+        vix_slope (if `vix` and `vix3m` are given) ln(VIX3M / VIX); VIX3M starts 2006-07
 
     Rows with NaN (the first 21 days, which lack a full monthly window, the
     final day, which has no "next day" yet, and any day with no VIX close) are dropped.
@@ -95,6 +104,9 @@ def build_features(df: pd.DataFrame, vix=None, fomc_dates=None) -> pd.DataFrame:
         out["vix_var"] = vix_to_daily_variance(vix.reindex(df.index))
     if fomc_dates is not None:
         out["fomc_next"] = fomc_tomorrow_flag(df.index, fomc_dates)
+
+    if vix3m is not None and vix is not None:
+        out["vix_slope"] = vix_term_slope(vix.reindex(df.index), vix3m.reindex(df.index))
 
     # Put target last so the order is: features..., target.
     out = out[[c for c in out.columns if c != "target"] + ["target"]]

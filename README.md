@@ -1,4 +1,4 @@
-# Daily Volatility Forecasting Tracker (Phases 1 and 2)
+# Daily Volatility Forecasting Tracker (Phases 1 to 6)
 
 ## Research question
 
@@ -112,6 +112,51 @@ python scripts/fetch_fomc_dates.py # only to rebuild the FOMC date list (needs i
 ```
 
 Outputs are written to `outputs/`. `python -m src.run_phase1` also writes `outputs/sheet_payload.json`, the rows used to refresh the project's Google Sheet.
+
+## Phase 4: VIX term-structure slope
+
+`python -m src.run_phase4` adds one input, `vix_slope = ln(VIX3M / VIX)`, known at the close. VIX3M starts 2006-07, so the forecasts start in 2010-07 and all models are scored on the same 4,111 rows. The candidate was fixed in advance, picked on 2010-2015 and checked on 2016 onward.
+
+| Model | QLIKE (all) | 2010-2015 | 2016+ (holdout) |
+|---|---|---|---|
+| Naive | 0.7646 | 0.7739 | 0.7599 |
+| HAR-RV (log) | 0.4055 | 0.3876 | 0.4146 |
+| HAR+VIX+FOMC (log) | 0.3597 | 0.3409 | 0.3692 |
+| HAR+VIX+FOMC+Slope (log) | **0.3460** | 0.3293 | 0.3544 |
+
+The slope model beats HAR+VIX+FOMC with DM statistic -4.97 on all rows and -4.04 on the holdout alone. Tested and rejected (no holdout gain): overnight gap, daily VIX change, down-day flag, SKEW, VVIX, day of week, options-expiry flag, fitting directly on QLIKE. VIX9D slope helped slightly on a shorter sample (2015+) and was not added. CPI and jobs-report dates were not tested (no reliable date source loaded). The Google Sheet has a "Slope model" tab with these numbers; the daily refresh task runs `python -m src.run_phase4 --refresh` and updates that tab from `outputs/slope_sheet_payload.json`.
+
+## Phase 5: volatility-managed SPY
+
+`python -m src.volmanaged` tests whether the forecasts make money. Hold SPY with weight `min(1, c_t / sigma_t)`, where `sigma_t` is the volatility implied by each model's forecast and `c_t` is its expanding median; no leverage, the rest in T-bills (`^IRX`), 2 bps cost, order at the close. The rule was fixed before looking at results. All models use the same 4,091 days (2010-08 to 2026-11).
+
+| | CAGR | Volatility | Sharpe | Max drawdown | Worst day |
+|---|---|---|---|---|---|
+| Buy & hold SPY | 14.3% | 16.9% | 0.78 | -33.7% | -10.9% |
+| Managed, HAR-RV (log) | 11.6% | 11.8% | 0.87 | -18.1% | -4.2% |
+| Managed, HAR+VIX+FOMC+Slope (log) | 10.7% | 11.4% | 0.81 | -20.0% | -4.3% |
+
+- **Risk falls a lot:** volatility drops by about a third, and the maximum drawdown and worst day roughly halve, at the cost of some return.
+- **Sharpe is not clearly better.** Differences vs buy & hold are +0.03 to +0.08 with 95% bootstrap intervals that include zero (`outputs/volmanaged_sharpe_diff_lag0.csv`). A one-day execution delay (`--lag 1`) gives the same picture.
+- **Better QLIKE did not give better Sharpe.** The most accurate forecaster (slope) is not the best managed portfolio; plain HAR is. The differences between models are within noise, so QLIKE gains should not be assumed to translate into trading gains.
+- **VXX/SVXY backtest (Phase 3) caveat:** the 10-year numbers mix regimes. VXX only exists from 2018-01 (earlier days use 2x UVXY returns), and SVXY was -1x until February 2018 and -0.5x after; its -83% day on 2018-02-06 is the strategy's worst day. Treat those results as unreliable.
+
+## Phase 6: earning more than buy & hold SPY
+
+`python -m src.higher_return --lag 1` tests three strategies fixed in advance (no fitted parameters), all with orders placed one trading day after the signal, which is the realistic case (VIX and VIX3M publish after most ETF order deadlines). Days: 2011-10 to 2026-11.
+
+| | CAGR | Volatility | Sharpe | Max drawdown | Worst day |
+|---|---|---|---|---|---|
+| Buy & hold SPY | 15.3% | 16.7% | 0.84 | -33.7% | -10.9% |
+| Managed SPY, dial k=1.5 (HAR-RV) | 17.4% | 19.3% | 0.84 | -27.6% | -7.5% |
+| Managed SPY, dial k=1.25 (HAR-RV) | 14.8% | 16.6% | 0.81 | -23.4% | -6.3% |
+| SVXY in contango, else cash | 11.6% | 31.0% | 0.46 | -58.3% | -21.4% |
+| 50% SPY + 50% SVXY in contango | 14.3% | 21.8% | 0.65 | -37.9% | -12.2% |
+
+- **Managed SPY with a risk dial is the one that works.** The Phase 5 weight is multiplied by k (k=1.5 means an average exposure of about 1.5x, capped at 2x; borrowing at T-bills + 0.5%). It earns more than SPY with a smaller drawdown. Sharpe is the same as SPY's, so this is more return for more volatility, not free money.
+- **It holds up through 2008.** On a longer sample (2004-2026, plain HAR-RV forecasts) k=1.5 gives 13.2% a year against 10.6% for SPY, with a -39% max drawdown against -55%, and Sharpe 0.64 against 0.54 (`outputs/higher_return_long_sample_lag1.csv`).
+- **The SVXY strategies do not work once orders are delayed a day.** With same-close execution (`--lag 0`, not realistic) B and C looked better than SPY; with a one-day delay both fall below it. The contango filter was on 93% of days, so B is close to just holding SVXY.
+- **Assumptions to watch:** leverage costs more than T-bills + 0.5% in most retail accounts (futures or margin can be cheaper or dearer; a leveraged ETF adds its own decay). SVXY before 2018-02-28 is modeled as 0.5 x actual (a -0.5x approximation). The sample is dominated by a strong bull market. Results are history, not a promise.
 
 ## Limitations
 

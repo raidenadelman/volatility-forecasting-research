@@ -193,14 +193,15 @@ def perf_stats(daily_ret: pd.Series, initial: float = INITIAL_CAPITAL) -> dict:
 # Orchestration
 # ----------------------------------------------------------------------------
 def build_everything(lag: int, refresh: bool = False, as_of: pd.Timestamp | None = None,
-                     long_half: float | None = None, long_full: float | None = None):
+                     long_half: float | None = None, long_full: float | None = None,
+                     years: int = 5):
     df = load_data(refresh=refresh, verbose=False)
     vix = load_vix(refresh=refresh, verbose=False)
     fomc_dates = pd.read_csv(FOMC_PATH, parse_dates=["date"])["date"]
     vix3m = load_yahoo_close("^VIX3M", refresh)
     etf = {t: load_yahoo_close(t, refresh) for t in [TRADE_LONG, TRADE_SHORT, LABEL_ETF, "SPY"]}
     as_of = as_of or min(vix.index.max(), df.index.max())
-    start = (as_of - pd.DateOffset(years=5))
+    start = (as_of - pd.DateOffset(years=years))
     start = vix.index[vix.index.searchsorted(start)]          # first trading day on/after 5y ago
 
     har_vol = har_forecast_vol(df, vix, fomc_dates)
@@ -211,7 +212,10 @@ def build_everything(lag: int, refresh: bool = False, as_of: pd.Timestamp | None
     probs = walk_forward_probability(X, y, horizon=1 + lag, start=start)
     sig = make_signals(probs["p_up"], long_half=long_half, long_full=long_full)
     rets = {t: s.reindex(X.index).pct_change(fill_method=None) for t, s in etf.items()}
-    bt = run_backtest(sig.loc[start:], rets[TRADE_LONG], rets[TRADE_SHORT], lag)
+    # VXX Series B only exists from 2018-01; before that the long leg uses UVXY (2x) returns.
+    r_long = rets[TRADE_LONG].fillna(rets[LABEL_ETF].where(rets[TRADE_LONG].index < etf[TRADE_LONG].index.min()))
+    rets[TRADE_LONG] = r_long
+    bt = run_backtest(sig.loc[start:], r_long, rets[TRADE_SHORT], lag)
     # Realized outcome of each signal, for calibration: did the held ETF move the predicted way?
     held = (bt["w_long"] > 0) | (bt["w_short"] > 0)
     return dict(bt=bt, sig=sig, rets=rets, start=start, as_of=as_of, probs=probs, held=held,
@@ -257,15 +261,15 @@ def plot_results(res: dict, path) -> None:
     fig.tight_layout(); fig.savefig(path, dpi=130); plt.close(fig)
 
 
-def main(refresh: bool = False, lag: int = 1) -> None:
+def main(refresh: bool = False, lag: int = 1, years: int = 5) -> None:
     OUT_DIR.mkdir(exist_ok=True)
     pd.set_option("display.width", 170)
     variants = [(lag, None, None, ""), (0, None, None, ""),
                 (lag, 0.45, 0.50, "_longvariant")]   # variant chosen AFTER seeing run 1: treat with suspicion
     for L, lh, lf, suffix in variants:
-        res = build_everything(L, refresh, long_half=lh, long_full=lf)
+        res = build_everything(L, refresh, long_half=lh, long_full=lf, years=years)
         stats, yearly, calib = summarize(res)
-        tag = f"lag{L}{suffix}"
+        tag = f"lag{L}{suffix}" + ("" if years == 5 else f"_{years}y")
         stats.to_csv(OUT_DIR / f"backtest_stats_{tag}.csv")
         yearly.to_csv(OUT_DIR / f"backtest_yearly_{tag}.csv")
         calib.to_csv(OUT_DIR / f"backtest_calibration_{tag}.csv")
@@ -288,5 +292,6 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--refresh", action="store_true")
     ap.add_argument("--lag", type=int, default=1, help="extra execution delay in trading days")
+    ap.add_argument("--years", type=int, default=5)
     a = ap.parse_args()
-    main(a.refresh, a.lag)
+    main(a.refresh, a.lag, a.years)

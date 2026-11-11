@@ -17,6 +17,7 @@ import statsmodels.api as sm
 FEATURES = ["rv_d", "rv_w", "rv_m"]
 VIX_FEATURES = FEATURES + ["vix_var"]
 FULL_FEATURES = VIX_FEATURES + ["fomc_next"]
+SLOPE_FEATURES = FULL_FEATURES + ["vix_slope"]
 LOG_COLUMNS = {"rv_d", "rv_w", "rv_m", "vix_var"}  # variance-type columns that get logged
 VARIANCE_FLOOR = 1e-8  # variance can't be negative (or zero), so floor forecasts here
 
@@ -131,3 +132,13 @@ def make_models(extended: bool = False) -> list:
                    HARLevelsModel(FULL_FEATURES, "HAR+VIX+FOMC (levels)"),
                    HARLogModel(FULL_FEATURES, "HAR+VIX+FOMC (log)")]
     return models
+
+
+def make_slope_models() -> list:
+    """Phase 4 comparison set (log models only; the levels forms can floor, see README).
+
+    Run all four on the SAME rows: VIX3M only exists from 2006-07, so the sample is shorter
+    than the main run's."""
+    return [NaiveModel(), HARLogModel(name="HAR-RV (log)"),
+            HARLogModel(FULL_FEATURES, "HAR+VIX+FOMC (log)"),
+            HARLogModel(SLOPE_FEATURES, "HAR+VIX+FOMC+Slope (log)")]

@@ -1,0 +1,21 @@
+,Sharpe
+volmanaged: Managed: Naive,0.7643392720221291
+volmanaged: Managed: HAR-RV (log),0.838060488455491
+volmanaged: Managed: HAR+VIX+FOMC (log),0.8361343873956528
+volmanaged: Managed: HAR+VIX+FOMC+Slope (log),0.8261211139985984
+higher_return: A. Managed SPY k=1.25: HAR-RV (log),0.8137370803169605
+higher_return: A. Managed SPY k=1.25: HAR+VIX+FOMC+Slope (log),0.8160093432039189
+higher_return: A. Managed SPY k=1.5: HAR-RV (log),0.8412497673541769
+higher_return: A. Managed SPY k=1.5: HAR+VIX+FOMC+Slope (log),0.8230918813300225
+"higher_return: B. SVXY in contango, else cash",0.45971711097402285
+higher_return: C. 50% SPY + 50% SVXY in contango,0.6474859187997353
+multiasset: 60/40 SPY/IEF,0.6288693458377664
+multiasset: Equal weight SPY/IEF/GLD,0.7720901427506661
+multiasset: Risk parity,0.7444708747128964
+"multiasset: Risk parity, managed",0.7588971721431153
+"multiasset: Risk parity, levered to SPY risk",0.6950971159989987
+phase3: VXX/SVXY signals,0.2938047537894015
+"robustness: Equal weight, daily rebalance",0.7610269759425259
+"robustness: Equal weight, monthly rebalance",0.7546993887150294
+"robustness: Equal weight, 5-point band",0.7533992043904937
+robustness: Equal weight + 200-day trend filter,0.7409270891872095
