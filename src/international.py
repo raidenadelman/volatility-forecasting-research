@@ -166,29 +166,30 @@ def run_fund(ticker: str, cash: pd.Series, refresh: bool = False):
 
 def weekly_corr(a: pd.Series, b: pd.Series) -> float:
     wk = lambda r: (1 + r).resample("W-FRI").prod() - 1
-    d = pd.concat([wk(a), wk(b)], axis=1).dropna()
+    d = pd.concat([wk(a), wk(b)], axis=1, sort=True).dropna()
     return float(d.corr().iloc[0, 1])
 
 
-def build_sheet_rows(table, crises, pooled, regions, verdict, passes, dd_better, n_funds, last) -> list:
+def build_sheet_rows(table, crises, pooled, regions, verdict, passes, dd_better, n_funds, first, last) -> list:
     blank = [""]
     rows = [["Phase 9: volatility-managed rule on 15 international country funds (out-of-sample)"],
             ["Rules were committed to git before any international data was downloaded. Same rule as Phase 5: "
              "weight = min(1, typical vol / forecast vol), no leverage, one-day delay, 10 bps per unit of turnover, "
-             f"rest in T-bills. Benchmark: buy & hold the same fund. Evaluation from {EVAL_START} to {last}. "
+             f"rest in T-bills. Benchmark: buy & hold the same fund. Evaluation from {first} (earliest, after the 500-day "
+             f"warm-up; later for funds with a later data start) to {last}. "
              "PASS = smaller max drawdown AND Sharpe difference >= 0."],
             blank,
             [f"Decision: {verdict}", f"Passes: {passes} of {n_funds}", f"Drawdown smaller: {dd_better} of {n_funds}",
              f"Average Sharpe difference: {pooled[0]:+.3f}", f"95% interval: {pooled[1]:+.3f} to {pooled[2]:+.3f}"],
             blank,
-            ["Fund", "Country", "Region", "Start", "Weekly corr. with SPY", "Sharpe (buy & hold)", "Sharpe (managed)",
+            ["Fund", "Country", "Region", "First evaluation day", "Weekly corr. with SPY", "Sharpe (buy & hold)", "Sharpe (managed)",
              "Sharpe difference", "Low 95%", "High 95%", "Max DD (buy & hold)", "Max DD (managed)",
              "Worst day (buy & hold)", "Worst day (managed)", "Average exposure", "PASS"]]
     for r in table.itertuples(index=False):
         if r.excluded:
-            rows.append([r.fund, r.country, r.region, str(r.start), f"EXCLUDED: {r.excluded}"])
+            rows.append([r.fund, r.country, r.region, f"clean data from {r.start}", f"EXCLUDED: {r.excluded}"])
             continue
-        rows.append([r.fund, r.country, r.region, str(r.start), round(r.corr_spy, 3), round(r.sharpe_bh, 3),
+        rows.append([r.fund, r.country, r.region, str(r.eval_start), round(r.corr_spy, 3), round(r.sharpe_bh, 3),
                      round(r.sharpe_man, 3), round(r.sharpe_diff, 3), round(r.lo95, 3), round(r.hi95, 3),
                      round(r.maxdd_bh, 4), round(r.maxdd_man, 4), round(r.worst_bh, 4), round(r.worst_man, 4),
                      round(r.avg_weight, 3), "PASS" if r.passed else "fail"])
@@ -200,7 +201,18 @@ def build_sheet_rows(table, crises, pooled, regions, verdict, passes, dd_better,
              ["Window", "Funds", "Buy & hold", "Managed", "Funds where managed was smaller"]]
     for r in crises.itertuples(index=False):
         rows.append([r.window, int(r.n), round(r.dd_bh, 4), round(r.dd_man, 4), int(r.n_better)])
-    rows += [blank, [f"Last refreshed {date.today().isoformat()}. Source: outputs/international_*.csv "
+    rows += [blank,
+             ["Reading it (as of the first run): under the pre-registered rule the verdict is CRASH INSURANCE ONLY. "
+              "Managed exposure cut the maximum drawdown in all 14 funds and in every fund in 2008-09 and 2020 (11 of 14 in 2022), but it did not "
+              "raise Sharpe: 3 of 14 passed, and the pooled Sharpe difference is about zero. SPY (in-sample) "
+              "looked better than any foreign fund, so the US Sharpe gain was probably partly luck."],
+             ["Disclosures: (1) the project's data loader starts Yahoo data in 2000, not 1996, so after the 500-day "
+              "warm-up evaluation starts in 2002 at the earliest and the 2000-02 crash is mostly missed. "
+              "(2) Belgium (EWK) had 371 zero-range days; the start-date rule left too little data, so it is "
+              "excluded and 14 funds are counted. (3) A post-hoc check (not part of the rules): with 0 bps costs "
+              "the pooled Sharpe difference is still only +0.005, so costs are not the reason. Turnover averages "
+              "about 5.5x a year."],
+             [f"Last refreshed {date.today().isoformat()}. Source: outputs/international_*.csv "
                      "(python -m src.international)."]]
     return rows
 
@@ -254,8 +266,8 @@ def main(refresh: bool = False) -> None:
                    "dd_better": dd_better, "n_funds": n_funds, "decision": verdict}]).to_csv(
         OUT_DIR / "international_pooled.csv", index=False)
     regions.to_csv(OUT_DIR / "international_regions.csv", index=False)
-    last = max(M.index.max(), B.index.max()).date()
-    sheet = build_sheet_rows(table, crises, pooled, regions, verdict, passes, dd_better, n_funds, last)
+    first, last = M.index.min().date(), max(M.index.max(), B.index.max()).date()
+    sheet = build_sheet_rows(table, crises, pooled, regions, verdict, passes, dd_better, n_funds, first, last)
     with open(OUT_DIR / "international_sheet_payload.json", "w") as f:
         json.dump({"range": SHEET_RANGE, "data": sheet}, f)
 
