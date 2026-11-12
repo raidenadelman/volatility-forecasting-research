@@ -10,7 +10,7 @@ The checks against fooling myself were:
 - Results come with bootstrap confidence intervals and a Sharpe ratio deflated for the number of strategies tried.
 - The final test was pre-registered: its rules were committed to git before the data was downloaded.
 
-Python (pandas, statsmodels, scipy, matplotlib), free Yahoo Finance data, 54 unit tests including no-look-ahead checks.
+Python (pandas, statsmodels, scipy, matplotlib), free Yahoo Finance data, 58 unit tests including no-look-ahead checks.
 
 ---
 
@@ -275,7 +275,7 @@ The deflated Sharpe ratio for equal weight is 0.985, or 0.975 assuming 50 trials
 python3 -m venv .venv
 source .venv/bin/activate              # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-python -m pytest                       # 54 tests
+python -m pytest                       # 58 tests
 
 python -m src.run_phase1               # Phases 1-2 (add --refresh to re-download)
 python -m src.backtest --lag 1 --years 10   # Phase 3
@@ -286,6 +286,7 @@ python -m src.multiasset --lag 1       # Phase 7
 python -m src.robustness --lag 1       # Phase 8
 python -m src.international            # Phase 9
 python -m src.make_charts              # README figures -> outputs/figures/
+python -m src.sheet_overview           # Google Sheet front tabs (Overview, Catalogue, Vol signals, Methods)
 ```
 
 Results are written to `outputs/` as CSVs, and each phase also writes a JSON payload for the project's Google Sheet.
@@ -300,8 +301,10 @@ src/
   volmanaged.py, higher_return.py                 Phases 5-6 SPY strategies
   multiasset.py, robustness.py                    Phases 7-8 SPY/IEF/GLD portfolios
   international.py                                Phase 9 pre-registered test
-  sheet_export.py, make_charts.py                 Google Sheet payloads, README figures
-tests/                                            54 tests, incl. no-look-ahead checks
+  sheet_export.py, sheet_overview.py              Google Sheet payloads (values)
+  sheet_style.py                                  Google Sheet formatting requests, generated from the payloads
+  make_charts.py                                  README figures
+tests/                                            58 tests, incl. no-look-ahead checks
 scripts/fetch_fomc_dates.py                       FOMC calendar from federalreserve.gov
 data/events/                                      FOMC dates (data/raw/ is cached, not committed)
 outputs/                                          result CSVs, charts, Sheet payloads
