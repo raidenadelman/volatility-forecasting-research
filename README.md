@@ -271,6 +271,8 @@ The deflated Sharpe ratio for equal weight is 0.985, or 0.975 assuming 50 trials
 
 ## How to run
 
+Requires Python 3.14 (versions pinned in `requirements.txt`). The tests need no downloads; the first pipeline run downloads prices from Yahoo Finance into `data/raw/`. Yahoo revises history from time to time, so a fresh download can move the last decimal places of some results.
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate              # Windows: .venv\Scripts\activate
@@ -327,3 +329,16 @@ outputs/                                          result CSVs, charts, Sheet pay
 1. **Longer history.** Rebuild bond returns from yields (1962+) and add proxies for gold, to test the 1970s inflation and the 1987 and 2000-02 crashes.
 2. **Live forward tracking.** Log each day's forecast and the strategy's target weights to build a genuinely out-of-sample record.
 3. **Intraday realized variance.** Use it in place of the Parkinson proxy.
+
+## Verifying the pre-registration
+
+The Phase 9 rules and results are in separate commits, so the order can be checked:
+
+```bash
+git log --format='%h %ad %s' --date=iso 1e353f7 -1   # rules, fund list and pass test
+git log --format='%h %ad %s' --date=iso 1187584 -1   # results
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE). This is research on historical data, not investment advice.
