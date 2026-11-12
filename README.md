@@ -1,5 +1,7 @@
 # Forecasting Market Volatility, and What It Is Actually Worth to an Investor
 
+[![tests](https://github.com/raidenadelman/volatility-forecasting-research/actions/workflows/tests.yml/badge.svg)](https://github.com/raidenadelman/volatility-forecasting-research/actions/workflows/tests.yml)
+
 A research project in nine phases. I built walk-forward models that forecast next-day S&P 500 volatility, then asked whether those forecasts help an investor. The models forecast well. Better forecasts did not raise return per unit of risk, but they reliably reduced losses in crashes. Diversifying across stocks, bonds and gold did more for risk-adjusted return than any forecast.
 
 The checks against fooling myself were:
